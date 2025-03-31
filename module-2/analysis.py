@@ -1,6 +1,6 @@
 import pandas as pd
 import json
-import scipy
+import networkx as nx
 
 with open("ingr_map.pkl", "rb") as file:
     ingr_map = pd.read_pickle(file)
@@ -11,32 +11,19 @@ with open("ingr_map.pkl", "rb") as file:
             ingr_names[row["id"]] = row["replaced"]
 
 RECIPES = pd.read_csv("PP_recipes.csv", nrows=1000)
-RAW_RECIPES = pd.read_csv("RAW_recipes.csv")
 
-rec_names = {}
-for idx, row in RAW_RECIPES.iterrows():
-        if row["id"] not in rec_names:
-            rec_names[row["id"]] = row["name"]
+g = nx.Graph()
 
-temp = []
+uniq = ingr_map.drop_duplicates(subset=["id"])
+for idx, row in uniq.iterrows():
+    g.add_node(row["id"], name= row["replaced"])
 
-for idx in range(len(RECIPES["id"])):
-    temp.append([0] * max(ingr_map["id"]))
-
-for idx in range(len(temp)): 
-    for ingredient_id in json.loads(RECIPES.iloc[idx]["ingredient_ids"]):
-        temp[idx][ingredient_id] = 1
-
-col= list(range(0 , max(ingr_map["id"])))
-
-DF = pd.DataFrame.from_records(data=temp, columns=col, index=RECIPES["id"])
-
-target = 424415 
-target_ = DF.loc[target]
-
-eucDistances = scipy.spatial.distance.cdist(DF,[target_], metric="euclidean").flatten()
-euc_query_distances = list(zip(DF.index, eucDistances)) 
-eucTopSim = sorted(euc_query_distances, key= lambda x:x[1], reverse=False)[:20]
-
-for x in eucTopSim:
-    print('{:<8} {:<50} {:<16}'.format(x[0], rec_names[x[0]], x[1]))
+for idx , row in RECIPES.iterrows():
+    i= 0
+    for left_ingr in json.loads(row["ingredient_ids"]):
+        for right_ingr in json.loads(row["ingredient_ids"])[i+1:]:
+          g.add_edge(left_ingr, right_ingr)
+        i += 1
+highest = sorted(g.degree, key = lambda x : x[1], reverse= True)
+print("Top 20 most used ingredients ")
+{print('{:<4}{:<8}{:<6}{:<30}{:<11}{:<4}'.format("ID: ", degree[0], "Name: ", g.nodes[degree[1]]["name"], "neighbors: ", degree[1])) for degree in highest[:20]}
